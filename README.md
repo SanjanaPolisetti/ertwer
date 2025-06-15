@@ -1,61 +1,64 @@
-🗺️ Multi-Map Navigation with Wormholes (TurtleBot3, ROS)
+🧭 Multi-Map Navigation with Wormholes (TurtleBot3 + ROS)
 
-This project implements autonomous multi-map navigation using TurtleBot3 in Gazebo simulation. It enables a robot to move between different mapped environments (rooms) using "wormholes", with map transitions handled dynamically via an SQL database.
-🧠 Features
+This project demonstrates multi-map navigation for a TurtleBot3 robot in simulation using ROS and Gazebo. The robot intelligently switches between different maps (e.g., rooms) using virtual wormholes, allowing it to reach goals across disjoint environments.
+🚀 Overview
 
-    🔁 Autonomous multi-map navigation
+    🔄 Seamless navigation across multiple maps
 
-    🌐 Map switching via SQL-defined wormholes
+    🕳️ Uses wormholes as transition points between rooms
 
-    📦 ROS action server to handle navigation requests across maps
+    🧠 Supports direct goal commands to a different map
 
-    ✅ Compatible with TurtleBot3 and standard move_base navigation stack
+    📡 Custom ROS Action Server to handle multi-map navigation
 
-    📡 Publishes navigation goals using a custom action interface
+    🗃️ Wormhole data managed using an SQLite3 database
 
-🧰 Requirements
-
-    ROS Noetic
-
-    TurtleBot3 packages
-
-    Gazebo
-
-    sqlite3 (for wormhole database)
-
-    Custom package: multi_map_nav
-
-📁 Directory Structure
+🗂️ Project Structure
 
 catkin_ws/
 ├── src/
 │   ├── my_turtlebot3_worlds/          # Custom world for Gazebo
-│   ├── multi_map_nav/                 # This package
-│   │   ├── action/                    # Contains MultiMapNav.action
-│   │   ├── src/                       # Server C++ code
-│   │   ├── include/multi_map_nav/     # Header for wormhole DB
-│   │   └── wormholes.db               # SQLite3 wormhole database
+│   ├── multi_map_nav/
+│   │   ├── action/                    # MultiMapNav.action
+│   │   ├── include/multi_map_nav/     # wormhole_db.hpp
+│   │   ├── src/                       # C++ implementation
+│   │   └── wormholes.db               # SQLite3 DB for wormholes
 │   └── ...
 ├── maps/
-│   ├── room1.yaml                     # Map of Room 1
-│   ├── room2.yaml                     # Map of Room 2
+│   ├── room1.yaml
+│   ├── room2.yaml
 
 🛠️ Setup Instructions
-1. Launch Custom World in Gazebo
+✅ Prerequisites
+
+    ROS Noetic
+
+    TurtleBot3 packages (turtlebot3_navigation, turtlebot3_slam)
+
+    Gazebo
+
+    sqlite3 (for database)
+
+    Your custom package: multi_map_nav
+
+1. Launch Custom Gazebo World
 
 roslaunch my_turtlebot3_worlds turtlebot3_world.launch
 
-2. Generate Maps (if not already done)
+    Ensure this world contains both room1 and room2 (or you simulate them independently).
 
-For each room:
+2. Generate Maps (Optional)
 
+Using SLAM to map each room:
+
+# Start SLAM
 roslaunch turtlebot3_slam turtlebot3_slam.launch
-# Drive robot to map the room
-# Save map after mapping
+
+# After mapping
 rosrun map_server map_saver -f ~/maps/room1
 
-Repeat for room2.
-3. Launch Navigation with Room2 as Starting Map
+Repeat this for room2.
+3. Launch Navigation (start in room2)
 
 roslaunch turtlebot3_navigation turtlebot3_navigation.launch map_file:=/home/sreejan/maps/room2.yaml
 
@@ -65,50 +68,57 @@ rosrun multi_map_nav multi_map_nav_server
 
 5. Set Up Wormhole Database
 
-sqlite3 wormholes.db
+sqlite3 ~/catkin_ws/src/multi_map_nav/wormholes.db
 
--- View schema
-.schema wormholes
+Inside SQLite prompt:
 
--- Insert wormhole from room2 to room1
+-- Delete any previous wormhole
+DELETE FROM wormholes WHERE from_map='room2' AND to_map='room1';
+
+-- Add a new wormhole from room2 (exit) to room1 (entry)
 INSERT INTO wormholes (from_map, to_map, from_x, from_y, to_x, to_y) 
 VALUES ('room2', 'room1', 5.2, 0.0, 3.0, 0.0);
 
-This means:
+    This means:
 
-    The robot exits room2 at (5.2, 0.0)
+        Robot starts in room2
 
-    It enters room1 at (3.0, 0.0)
+        Wormhole exit: (5.2, 0.0) in room2
 
-🧪 Sending a Multi-Map Goal
+        Wormhole entry: (3.0, 0.0) in room1
 
-You can send a goal in the second map (room1) while robot is currently in room2:
+📡 Sending a Multi-Map Navigation Goal
+
+To send a goal in another map (room1), even though the robot starts in room2, use:
 
 rostopic pub /multi_map_nav/goal multi_map_nav/MultiMapNavActionGoal \
 '{goal: {goal_pose: {header: {frame_id: "map"}, pose: {position: {x: 6.0, y: 0.0, z: 0}, orientation: {w: 1.0}}}, target_map: "room1"}}'
 
-🧭 This will:
+🔁 What Happens:
 
-    Navigate robot to wormhole in room2 (5.2, 0.0)
+    Robot navigates to wormhole position (5.2, 0.0) in room2
 
-    Switch map to room1
+    Switches map to room1
 
-    Initialize robot at wormhole exit (3.0, 0.0)
+    Relocalizes to entry position (3.0, 0.0) in room1
 
-    Navigate to final goal in room1 (6.0, 0.0)
+    Navigates to final goal (6.0, 0.0) in room1
 
-🧱 Architecture
+🧠 Architecture Summary
+Component	Description
+multi_map_nav_server.cpp	Action server managing full navigation flow
+wormhole_db.hpp	SQLite-based DB handler for wormhole queries
+MultiMapNav.action	Custom action message format
+📝 Example Workflow
 
-    MultiMapNavAction (C++): ROS Action Server that
+# 1. Launch simulation world
+roslaunch my_turtlebot3_worlds turtlebot3_world.launch
 
-        Accepts final pose and target map
+# 2. Launch navigation in current map (room2)
+roslaunch turtlebot3_navigation turtlebot3_navigation.launch map_file:=/home/sreejan/maps/room2.yaml
 
-        Reads wormhole position from SQLite
+# 3. Start multi-map action server
+rosrun multi_map_nav multi_map_nav_server
 
-        Sends goals to move_base
-
-        Switches map via system call
-
-    wormhole_db.hpp: Loads wormhole coordinates from SQLite3
-
-    MultiMapNav.action: Custom action interface
+# 4. Send navigation goal to second map (room1)
+rostopic pub /multi_map_nav/goal multi_map_nav/MultiMapNavActionGoal ...
