@@ -15,19 +15,32 @@ This project demonstrates multi-map navigation for a simulated TurtleBot3 robot 
 
 📁 Project Structure
 
-catkin_ws/
-├── src/
-│   ├── my_turtlebot3_worlds/          # Custom world definition
-│   ├── multi_map_nav/
-│   │   ├── action/                    # Custom MultiMapNav.action definition
-│   │   ├── include/multi_map_nav/
-│   │   │   └── wormhole_db.hpp        # SQLite DB handler
-│   │   ├── src/
-│   │   │   └── multi_map_nav_server.cpp  # Main action server code
-│   │   └── wormholes.db               # Database of wormhole locations
-├── maps/
-│   ├── room1.yaml
-│   └── room2.yaml
+📁 Project Structure
+
+    my_turtlebot3_worlds/
+    Contains the custom Gazebo world files for simulating the multi-room environment.
+
+    multi_map_nav/
+    Your custom ROS package for handling multi-map navigation using wormholes. This includes:
+
+        action/
+        Contains the MultiMapNav.action file used to define the custom action interface.
+
+        include/multi_map_nav/wormhole_db.hpp
+        C++ header file that defines the interface to interact with the wormhole SQLite database.
+
+        src/multi_map_nav_server.cpp
+        Main action server implementation. Handles goal processing, navigation to wormholes, and map switching.
+
+        wormholes.db
+        SQLite3 database file that stores wormhole mappings between different maps (e.g., room2 → room1).
+
+    maps/
+    Stores the SLAM-generated map files (YAML + PNG) for each room.
+
+        room1.yaml
+
+        room2.yaml
 
 ✅ Prerequisites
 
