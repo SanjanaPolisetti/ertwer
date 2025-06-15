@@ -1,66 +1,114 @@
-Screen Recorder Installation for Ubuntu
+🗺️ Multi-Map Navigation with Wormholes (TurtleBot3, ROS)
 
-This guide provides instructions on how to install popular screen recording software on your Ubuntu system. Whether you need a simple tool for quick recordings or a powerful solution for streaming and content creation, you'll find options here.
-Available Screen Recorders
+This project implements autonomous multi-map navigation using TurtleBot3 in Gazebo simulation. It enables a robot to move between different mapped environments (rooms) using "wormholes", with map transitions handled dynamically via an SQL database.
+🧠 Features
 
-We cover the installation for three highly recommended screen recorders:
+    🔁 Autonomous multi-map navigation
 
-    SimpleScreenRecorder: Easy-to-use, great for general desktop recording.
+    🌐 Map switching via SQL-defined wormholes
 
-    Kazam: User-friendly with essential recording and screenshot features.
+    📦 ROS action server to handle navigation requests across maps
 
-    OBS Studio: Powerful, versatile, and ideal for streaming and advanced recording.
+    ✅ Compatible with TurtleBot3 and standard move_base navigation stack
 
-Installation Instructions
+    📡 Publishes navigation goals using a custom action interface
 
-Follow the steps below to install your preferred screen recorder.
-1. SimpleScreenRecorder
+🧰 Requirements
 
-SimpleScreenRecorder is known for its straightforward interface and efficiency.
+    ROS Noetic
 
-Installation Commands:
+    TurtleBot3 packages
 
-sudo add-apt-repository ppa:maarten-baert/simplescreenrecorder
-sudo apt update
-sudo apt install simplescreenrecorder
+    Gazebo
 
-How to Use:
-After installation, search for "SimpleScreenRecorder" in your applications menu and launch it. It features a wizard-like interface that will guide you through selecting your recording area, audio source, and desired output format.
-2. Kazam
+    sqlite3 (for wormhole database)
 
-Kazam provides a clean user experience for basic screen recording and screenshot capture.
+    Custom package: multi_map_nav
 
-Installation Commands:
+📁 Directory Structure
 
-sudo apt update
-sudo apt install kazam
+catkin_ws/
+├── src/
+│   ├── my_turtlebot3_worlds/          # Custom world for Gazebo
+│   ├── multi_map_nav/                 # This package
+│   │   ├── action/                    # Contains MultiMapNav.action
+│   │   ├── src/                       # Server C++ code
+│   │   ├── include/multi_map_nav/     # Header for wormhole DB
+│   │   └── wormholes.db               # SQLite3 wormhole database
+│   └── ...
+├── maps/
+│   ├── room1.yaml                     # Map of Room 1
+│   ├── room2.yaml                     # Map of Room 2
 
-How to Use:
-Find "Kazam" in your applications menu and open it. A minimalist window will appear, allowing you to choose between recording the entire screen, a specific window, or a custom selected area. You can also configure your microphone input.
-3. OBS Studio (Open Broadcaster Software)
+🛠️ Setup Instructions
+1. Launch Custom World in Gazebo
 
-OBS Studio is the go-to choice for professionals and enthusiasts who need robust recording, live streaming, and advanced scene composition capabilities.
+roslaunch my_turtlebot3_worlds turtlebot3_world.launch
 
-Installation Commands:
+2. Generate Maps (if not already done)
 
-sudo apt update
-sudo apt install obs-studio
+For each room:
 
-How to Use:
-Launch "OBS Studio" from your applications menu. The interface is more complex, focusing on "Scenes" and "Sources." To record your screen, you'll need to:
+roslaunch turtlebot3_slam turtlebot3_slam.launch
+# Drive robot to map the room
+# Save map after mapping
+rosrun map_server map_saver -f ~/maps/room1
 
-    In the "Sources" box, click the + icon.
+Repeat for room2.
+3. Launch Navigation with Room2 as Starting Map
 
-    Select "Display Capture" (or "Window Capture" for a specific application).
+roslaunch turtlebot3_navigation turtlebot3_navigation.launch map_file:=/home/sreejan/maps/room2.yaml
 
-    Follow the prompts to add your display.
+4. Run the Multi-Map Navigation Server
 
-    Ensure your audio sources (Mic/Aux) are configured.
+rosrun multi_map_nav multi_map_nav_server
 
-    Click the "Start Recording" button in the "Controls" panel.
+5. Set Up Wormhole Database
 
-After Installation
+sqlite3 wormholes.db
 
-Once your chosen screen recorder is installed, you can typically find it by searching for its name in your Ubuntu Applications menu (usually accessible via the grid icon in the dock or by pressing the Super/Windows key).
+-- View schema
+.schema wormholes
 
-Choose the tool that best fits your specific needs. Simple tasks are easily handled by SimpleScreenRecorder or Kazam, while OBS Studio excels in more demanding scenarios like content creation and live broadcasting.
+-- Insert wormhole from room2 to room1
+INSERT INTO wormholes (from_map, to_map, from_x, from_y, to_x, to_y) 
+VALUES ('room2', 'room1', 5.2, 0.0, 3.0, 0.0);
+
+This means:
+
+    The robot exits room2 at (5.2, 0.0)
+
+    It enters room1 at (3.0, 0.0)
+
+🧪 Sending a Multi-Map Goal
+
+You can send a goal in the second map (room1) while robot is currently in room2:
+
+rostopic pub /multi_map_nav/goal multi_map_nav/MultiMapNavActionGoal \
+'{goal: {goal_pose: {header: {frame_id: "map"}, pose: {position: {x: 6.0, y: 0.0, z: 0}, orientation: {w: 1.0}}}, target_map: "room1"}}'
+
+🧭 This will:
+
+    Navigate robot to wormhole in room2 (5.2, 0.0)
+
+    Switch map to room1
+
+    Initialize robot at wormhole exit (3.0, 0.0)
+
+    Navigate to final goal in room1 (6.0, 0.0)
+
+🧱 Architecture
+
+    MultiMapNavAction (C++): ROS Action Server that
+
+        Accepts final pose and target map
+
+        Reads wormhole position from SQLite
+
+        Sends goals to move_base
+
+        Switches map via system call
+
+    wormhole_db.hpp: Loads wormhole coordinates from SQLite3
+
+    MultiMapNav.action: Custom action interface
